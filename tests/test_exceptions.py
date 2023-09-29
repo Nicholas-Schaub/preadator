@@ -1,13 +1,13 @@
 """Tests that exceptions are correctly caught and handled by Preadator."""
 
 import math
+import random
+import time
 import typing
 
 import preadator
 import pytest
 
-import time
-import random
 
 def division(a: float, b: float) -> typing.Union[float, ZeroDivisionError]:
     """Returns the result of dividing a by b.
@@ -27,16 +27,24 @@ class NegativeSqrtError(ValueError):
 
     pass
 
-def slow_square_root(a: int) -> typing.Union[float, NegativeSqrtError]:
-    random_big_number = random.randint(1, 1000) * 100000
-    for i in range(0,random_big_number):
-        i =+ 1
-    return square_root(a)
 
-def slow_square_root_that_releases_gil(a: int) -> typing.Union[float, NegativeSqrtError]:
-    random_delay = random.randint(1, 10) * 1000
+def slow_square_root(a: int) -> typing.Union[float, NegativeSqrtError]:
+    """Returns the square root of a after a delay."""
+    random_big_number = random.randint(1, 100) * 100  # noqa: S311
+    i = 0
+    for _ in range(0, random_big_number):
+        i += 1
+    return square_root(a) + square_root(i)  # type: ignore[operator]
+
+
+def slow_square_root_that_releases_gil(
+    a: int,
+) -> typing.Union[float, NegativeSqrtError]:
+    """Returns the square root of a after a random delay."""
+    random_delay = random.randint(1, 10)  # noqa: S311
     time.sleep(random_delay)
     return square_root(a)
+
 
 def square_root(a: int) -> typing.Union[float, NegativeSqrtError]:
     """Returns the square root of a.
@@ -123,6 +131,7 @@ def test_square_root() -> None:
 
         pm.join_processes()
 
+
 def test_slow_square_root() -> None:
     """Tests that square root errors are correctly caught and handled by Preadator."""
     assert square_root(1) == 1
@@ -150,6 +159,7 @@ def test_slow_square_root() -> None:
         futures.append(pm.submit_process(slow_square_root, b))
 
         pm.join_processes()
+
 
 def test_slow_square_root_that_releases_gil() -> None:
     """Tests that square root errors are correctly caught and handled by Preadator."""
