@@ -74,14 +74,14 @@ def img_op(
         op: operation to apply to the images.
 
     Returns:
-        path to the output image
+        path to the output image.
     """
     with preadator.ProcessManager(
-        name="test_img_op",
+        name="img_op",
         log_level="INFO",
-        num_processes=4,
-        threads_per_process=2,
-        threads_per_request=2,
+        num_processes=2,
+        threads_per_process=1,
+        threads_per_request=1,
     ) as pm:
         futures = []
 
@@ -134,6 +134,25 @@ def test_nested_pm() -> None:
         gen_image(input_dir, f"{name}.ome.tif", utils.TILE_SIZE * 2, i)
         for i, name in enumerate(["a", "b", "c", "d"], start=1)
     ]
+
+    """
+    out_path = img_op(
+        img_op(
+            image_paths[0],
+            image_paths[1],
+            output_dir.joinpath("ab.ome.tif"),
+            tile_add,
+        ),
+        img_op(
+            image_paths[3],
+            image_paths[2],
+            output_dir.joinpath("cd.ome.tif"),
+            tile_sub,
+        ),
+        output_dir.joinpath("abcd.ome.tif"),
+        tile_mul,
+    )
+    """
 
     with preadator.ProcessManager(
         name="test_nested",
