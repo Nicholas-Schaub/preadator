@@ -8,6 +8,7 @@ import typing
 import bfio
 import numpy
 import preadator
+import pytest
 
 from . import utils
 
@@ -119,6 +120,7 @@ def img_op(
     return o
 
 
+@pytest.mark.skipif("not config.getoption('hangs')")
 def test_nested_pm() -> None:
     """Test that preadator's ProcessManager can be nested."""
     data_dir = pathlib.Path(tempfile.mkdtemp(suffix="_data_dir"))
@@ -197,3 +199,62 @@ def test_nested_pm() -> None:
         assert numpy.all(reader[:] == 3), "The output image is incorrect."
 
     shutil.rmtree(data_dir)
+
+
+def fibonacci(n: int, method: typing.Literal["process", "thread"]) -> int:
+    """Get Fibonacci number, the recursive way.
+
+    For now, his test should fail with a large enough n. The reason is that the
+    ProcessManager will have too many threads/processes to manage and will
+    hang.
+
+    With small n, the test will pass if there are enough threads/processes
+    available.
+
+    With large n, the test will fail because there are not enough
+    threads/processes available for the shortest possible execution path to a
+    base case.
+
+    With moderate n, the test will have a chance of passing or failing depending
+    on the number of threads/processes available and on the inherent randomness
+    of the execution order of the threads/processes.
+
+    Eventually, we will rework how the ProcessManager handles nested
+    thread/process submissions. At that point, this test should pass for all
+    values of n if there is enough time to run the test.
+
+    Args:
+        n: the nth Fibonacci number to get.
+        method: use threads or processes.
+
+    Returns:
+        the nth Fibonacci number.
+    """
+    if n < 0:
+        msg = "fibonacci() not defined for negative values"
+        raise ValueError(msg)
+    if n < 2:
+        return n
+    with preadator.ProcessManager(
+        name=f"PM_Fibonacci({n})",
+        num_processes=4,
+        threads_per_process=2,
+    ) as pm:
+        if method == "thread":
+            f_1 = pm.submit_thread(fibonacci, n - 1, method)
+            f_2 = pm.submit_thread(fibonacci, n - 2, method)
+            pm.join_threads()
+        else:
+            assert method == "process"
+            f_1 = pm.submit_process(fibonacci, n - 1, method)
+            f_2 = pm.submit_process(fibonacci, n - 2, method)
+            pm.join_processes()
+        return f_1.result() + f_2.result()
+
+
+@pytest.mark.skipif("not config.getoption('hangs')")
+@pytest.mark.parametrize("n", [3, 4, 5, 6])
+@pytest.mark.parametrize("method", ["process", "thread"])
+def test_fibonacci(n: int, method: typing.Literal["process", "thread"]) -> None:
+    """Run a series of recursive tests to calculate Fibonacci numbers."""
+    fibonacci(n, method)
